@@ -1,0 +1,90 @@
+---
+title: "Epi 751 Lab5"
+date: "2023-09-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# install.packages("haven", repos="https://cran.r-project.org/web/packages/haven/index.html")
+# install.packages("survival", repos="https://cran.r-project.org/web/packages/survival/index.html")
+# install.packages("tidyverse", repos="https://cran.r-project.org/web/packages/tidyverse/index.html")
+# install.packages("dplyr", repos="https://cran.r-project.org/web/packages/dplyr/index.html")
+# install.packages("ggplot2", repos="https://cran.r-project.org/web/packages/ggplot2/index.html")
+# install.packages("devtools", repos="https://www.r-project.org/nosvn/pandoc/devtools.html")
+# tinytex::install_tinytex(force=TRUE)
+library(tidyverse)
+library(devtools)
+library(dplyr)
+library(haven)
+library(survival)
+library(ggplot2)
+library(devtools)
+# install_github('kassambara/survminer')
+library(survminer)
+# install.packages("cmprsk")
+library(cmprsk)
+```
+
+Read in the data.
+```{r, echo=TRUE}
+#save the files "Lab5_Halsted_Data.dta" and this file "Lab5.Rmd" to your desktop (or to a folder, but both files MUST be in the same place)
+# given files are in your desktop, remember to replace *** with your username for Mac Users. for PC users, insert the filepath to your Desktop or wherever you are storing the Lab5_Halsted_Data file
+setwd("D:/JHU/term 1/751-epi method/week 5/Epi751_Lab5_DataFiles") #this command sets the working directory where files are read from and where files are outputted
+
+data_hal <- read_dta("Lab5_Halsted_Data.dta") #read in the STATA dataset into R
+```
+
+Count number of observations in the dataset.
+```{r, echo=TRUE}
+length(data_hal$id)
+```
+
+Describe the dataset.
+```{r}
+table(data_hal$death) #how many deaths occurred
+
+summary(data_hal$enddate) #summarizes the follow-up time
+# median(data_hal$enddate) #median value for follow-up time
+# max(data_hal$enddate) #maximum value for follow-up time
+```
+
+Make a survival object. 
+```{r, echo=TRUE}
+survival_object <- Surv(time=data_hal$enddate, event=data_hal$death)
+```
+
+# Create a Kaplan-Meier plot.
+```{r, echo=TRUE}
+km_fit <- survfit(survival_object ~ 1)
+plot(km_fit, xlab = "Post-Operative Time (Months)", 
+     ylab = "Probability of Survival",
+     main = "Kaplan-Meier Estimate of Post-Operative Survival \nHalsted's Radical Mastectomy Patients (N=50) (1889-1894)",
+     xaxt="n")
+axis(1, at = seq(0, 60, by = 6), las=2)
+
+# ylim=c(0,1), xlim=c(0,54))
+```
+
+# Create a Cumulative Incidence Plot
+```{r, echo=TRUE, warning=FALSE}
+#first, we make a cumulative incidence object
+cif_obj <- cuminc(data_hal$enddate, data_hal$death)
+
+# Plot the cumulative incidence function for the event of interest (e.g., event code 1)
+plot(cif_obj, event = 1, xlab = "Post-Operative Time (Months)", 
+     ylab = "Probability of Mortality",
+     main = "Cumulative Incidence of Post-Operative Mortality \nHalsted's Radical Mastectomy Patients (1889-1894)",
+     xaxt="n")
+axis(1, at = seq(0, 60, by = 6), las=2)
+     # xlim = c(0,50), ylim = c(0,1.0))
+```
+
+
+# Run R's equivalent to the "sts list" command in Stata
+```{r, echo=TRUE}
+event_summary <- summary(km_fit)
+event_summary
+```
+
+
+
