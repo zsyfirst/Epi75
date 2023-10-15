@@ -1,0 +1,213 @@
+---
+title: "Epi 751 Lab8"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Instructions: 
+
+Download the entire R folder from courseplus. This folder should contain (1) the lab 8 stata .dta datafiles, (2) the lab 7 stata .dta file, and (3) this .rmd markdown file. 
+
+For this code, you will need the _foreign_ and _tidyverse_ packages from R. You can download these by running the following lines of code in your R terminal (not by knitting this .rmd file). You only need to run these lines of code once.  
+```{r, eval = FALSE}
+# install.packages("foreign", repos = "https://cran.r-project.org")
+# install.packages("tidyverse", repos = "https://cran.r-project.org")
+```
+
+After the foreign library is installed into R, you need to actually load it. Every time you use a library in an R session, you need to load it.
+```{r}
+library(foreign)
+library(tidyverse)
+
+```
+
+The following chunk of code creates two variables in R that contain the filenames of the .dta files. 
+```{r}
+Lab8_dta_directory = "Lab8_WIHS_Measures_CIs_Data.dta"
+
+Lab7_dta_directory = "Lab7_WIHS_Measures_Assn_Data.dta"
+```
+
+
+If your dta files are in the same folder as your .rda file, you do not modify anything and do not need to run the following line of code. If you're running this in an interactive R session (instead of by knitting an .rmd file) or if your dta files are located somewhere else, then you'll want to set your working directory to the location of the dta files using the following R command.
+```{r, eval = F}
+setwd("D:/JHU/term 1/751-epi method/week 8/Lab8")
+```
+For example, let's say the dta files are in a folder called "Lab8", located inside an "EpiMethods" folder on your desktop. In that case, you would to replace "..." with "/Users/UserProfile/Desktop/EpiMethods/Lab8".
+
+# R-code
+
+## Read in the data
+```{r}
+Lab8_data <- read.dta(Lab8_dta_directory)
+```
+Let's verify that the file was correctly read into R.
+```{r}
+head(Lab8_data, n=6)
+```
+The previous line of code should match the following table. Please verify it:
+
+| ##rownumber | newid | aidsprev | aidsinc |  start   |  end  | ptime | cd4n | cd4cat  | case1cont0 | cd4less200 |
+|---|---|----|--------|-----|-------|-------|-------|-----|--------|----------|-------|
+| 1   |  6    |    0   |    0 | 1994.89 | 1997.75 | 2.85558  | 634    |   3      |     0  |         0 | 
+| 2 |   7    |    0    |   1 | 1994.92 | 1995.97 | 1.05133  | 518   |    3      |     1    |       0 | 
+| 3  |   8   |     0  |     1 | 1994.93 | 1995.81 | 0.88433  | 371    |   3       |    1   |        0 | 
+| 4  |  11   |     0    |   1 | 1994.91 | 1997.37 | 2.45859  | 291    |   2      |     1  |         0 | 
+| 5 |   12   |     0    |   0 | 1994.87 | 1997.75 | 2.87474  | 512   |    3       |    0  |         0 | 
+| 6 |   16   |     0    |   0 | 1994.91 | 1996.83 | 1.91650  | 143    |   1       |    0        |   1 | 
+
+
+## At-Home Question 1: Table 1.
+The following line of code produces a table that tells you how many people did or did not have clinical AIDs by 10/1/1997; this is the "overall" row in table 1.
+```{r}
+table(Lab8_data$case1cont0, useNA = "ifany")
+```
+
+The next line of code produces a contigency table that tells you the number of people in a given CD4 category (rows) with a specific clinical AIDS status (columns); these are the remaining rows of table 1.
+```{r}
+table(Lab8_data$cd4cat ,Lab8_data$case1cont0, useNA = "ifany")
+```
+The next line of code tells you the percentage of individuals in a  column (or have a particular case status) that would fall in each of the CD4 categories; these are the percentages found in table 1.
+```{r}
+prop.table(table(Lab8_data$cd4cat ,Lab8_data$case1cont0, useNA = "ifany"), margin = 2)
+```
+
+The remaining tables and questions do not require R code.
+
+# Optional Activity
+**Please note that there will be a difference in standard errors (and consequently confidence intervals) when doing this activity in stata vs. in R.** Stata and R use different corrections for the standard errors, which is what is responsible for these discrepancies. 
+
+## Data Set-Up
+First, let's read the lab 7 .dta file into R.
+```{r}
+Lab7_data <- read.dta(Lab7_dta_directory)
+```
+
+Second, let's add two new columns - or "dummy variables" - to this dataset. The first is cd4cat2_vsREF and this column is equal to 0 for CD4 category = 1, 2 for CD4 category = 2, and NA for any other CD4 categories.  The second is cd4cat3_vsREF and this column is equal to 0 for CD4 category = 1, 2 for CD4 category = 3, and NA for any other CD4 categories. 
+
+```{r}
+Lab7_data <- mutate(Lab7_data, cd4cat2_vsREF = ifelse(Lab7_data$cd4cat == 1, 0, ifelse(Lab7_data$cd4cat == 2, 1, NA)))
+Lab7_data <- mutate(Lab7_data, cd4cat3_vsREF = ifelse(Lab7_data$cd4cat == 1, 0, ifelse(Lab7_data$cd4cat == 3, 1, NA)))
+```
+
+Let's verify that the new columns were made correctly. Starting off with cd4cat2_vsREF:
+```{r}
+table(Lab7_data$cd4cat2_vsREF, Lab7_data$cd4cat, useNA = "ifany")
+```
+The output is supposed to match the following table:
+
+|    |     1 |  2  | 3 |
+|---|----|---|---|
+|  0  |  594 |  0  | 0 | 
+|  1    |  0 | 466  | 0 | 
+|  NA |  0  | 0 | 921 |
+
+In that table, our new "cd4cat2_vsREF" variable is in rows and the old "cd4cat" variable is in the columns. You can see that our new variable will equal 1 for everyone with a cd4 category of 2 and 0 for everyone with a CD4 category of 1. Everyone  with a CD4 category of 3 is coded as NA in our new variable.
+
+Moving onto  off with cd4cat3_vsREF:
+```{r}
+table(Lab7_data$cd4cat3_vsREF, Lab7_data$cd4cat, useNA = "ifany")
+```
+The output should match the following table:
+
+|    |     1 |  2  | 3 |
+|---|----|---|---|
+|  0  |  594 |  0  | 0 | 
+|  1    |  0 | 0  | 921 | 
+|  NA |  0  | 466 | 0 |
+
+## Calculations
+
+### Prevalence Ratios
+First, let's estimate the prevalence ratio of AIDS comparing comparing CD4 between 200-350 to CD4<200 (or cd4cat = 2 vs. cd4cat = 1). For this, we'll use our cd4cat2_vsREF dummy variable.
+```{r}
+model <- glm(aidsprev ~ cd4cat2_vsREF, family = binomial(link = log), data = Lab7_data)
+```
+The prevalence ratio is:
+```{r}
+exp(coef(model)[2])
+```
+The 95% confidence interval is:
+```{r}
+exp(confint(model)[2,])
+```
+
+
+Second, let's estimate the prevalence ratio of AIDS comparing comparing CD4 >350 to CD4<200 (or cd4cat = 3 vs. cd4cat = 1). For this, we'll use our cd4cat3_vsREF dummy variable.
+```{r}
+model <- glm(aidsprev ~ cd4cat3_vsREF, family = binomial(link = log), data = Lab7_data)
+```
+The prevalence ratio is:
+```{r}
+exp(coef(model)[2])
+```
+The 95% confidence interval is:
+```{r}
+exp(confint(model)[2,])
+```
+
+### Risk Ratios/Relative Risks
+First, let's estimate the risk ratio of AIDS comparing comparing CD4 between 200-350 to CD4<200 (or cd4cat = 2 vs. cd4cat = 1). For this, we'll use our cd4cat2_vsREF dummy variable.
+```{r}
+model <- glm(aidsinc ~ cd4cat2_vsREF, family = binomial(link = log), data = Lab7_data)
+```
+The risk ratio is:
+```{r}
+exp(coef(model)[2])
+```
+The 95% confidence interval is:
+```{r}
+exp(confint(model)[2,])
+```
+
+Second, let's estimate the risk ratio of AIDS comparing comparing CD4 >350 to CD4<200 (or cd4cat = 3 vs. cd4cat = 1). For this, we'll use our cd4cat3_vsREF dummy variable.
+```{r}
+model <- glm(aidsinc ~ cd4cat3_vsREF, family = binomial(link = log), data = Lab7_data)
+```
+The risk ratio is:
+```{r}
+exp(coef(model)[2])
+```
+The 95% confidence interval is:
+```{r}
+exp(confint(model)[2,])
+```
+
+### Incidence Rate Ratio
+First, let's estimate the incidence rate ratio of AIDS comparing comparing CD4 between 200-350 to CD4<200 (or cd4cat = 2 vs. cd4cat = 1). For this, we'll use our cd4cat2_vsREF dummy variable.
+```{r}
+model <- glm(aidsinc~cd4cat2_vsREF+offset(log(ptime)), family = poisson(link = "log"), data = Lab7_data)
+```
+The incidence rate ratio is:
+```{r}
+exp(coef(model)[2])
+```
+The 95% confidence interval is:
+```{r}
+exp(confint(model)[2,])
+```
+
+Second, let's estimate the incidence rate ratio of AIDS comparing comparing CD4 >350 to CD4<200 (or cd4cat = 3 vs. cd4cat = 1). For this, we'll use our cd4cat3_vsREF dummy variable.
+```{r}
+model <- glm(aidsinc~cd4cat3_vsREF+offset(log(ptime)), family = poisson(link = "log"), data = Lab7_data)
+```
+The incidence rate ratio is:
+```{r}
+exp(coef(model)[2])
+```
+The 95% confidence interval is:
+```{r}
+exp(confint(model)[2,])
+```
+# Conclusion
+Please note that when you run any R script, it is good practice to note the versions of any R packages and other relevant session-info details. You can record the date, time, and a summary of your current R session with the following commands:
+```{r}
+Sys.Date()
+Sys.time()
+sessionInfo()
+```
+This script was originally developed under R version 4.2.2 (2022-10-31). The following packages were loaded at the time: lubridate_1.9.2, forcats_1.0.0, stringr_1.5.0, dplyr_1.1.0,  purrr_1.0.1,   readr_2.1.4,  tidyr_1.3.0,  tibble_3.1.8,  ggplot2_3.4.1, tidyverse_2.0.0, foreign_0.8-85 

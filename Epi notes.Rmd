@@ -10,16 +10,18 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # calculate cumulative incidence when the incidence rate is known
-R(t) = 1 - e^(-IR*t)
+## R(t) = 1 - e^(-IR*t)
 ```{r calculate}
-1-exp(-(1368/1000000*10))
+1-exp(-(1368/1000000*10))    # 0.01359
 
-1-exp(-(1368/1000000*10+1773/1000000*10))
+1-exp(-(1368/1000000*10+1773/1000000*10))  # 0.0309
 
 ```
+If incidence rate is constant over the time interval, and IRxt < 0.1 (ethier becasue of the low IR or short t), then *R=IRxt*
+## R=IR*t
+```{r R=IR*t}
+1368/1000000*10   # 0.01368
 
-
-
-
-
+1368/1000000*10+1773/1000000*10    # 0.0314
+```
 

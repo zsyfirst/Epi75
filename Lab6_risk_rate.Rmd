@@ -1,0 +1,208 @@
+---
+title: "Epi 751 Lab6"
+output:
+  html_document:
+    df_print: paged
+date: "`r Sys.Date()`"
+---
+
+```{r, echo=FALSE,results=FALSE, warning=FALSE, message=FALSE}
+# install.packages("haven", repos="https://cran.r-project.org/web/packages/haven/index.html")
+# install.packages("survival", repos="https://cran.r-project.org/web/packages/survival/index.html")
+# install.packages("tidyverse", repos="https://cran.r-project.org/web/packages/tidyverse/index.html")
+# install.packages("dplyr", repos="https://cran.r-project.org/web/packages/dplyr/index.html")
+# install.packages("devtools", repos="https://www.r-project.org/nosvn/pandoc/devtools.html")
+# tinytex::install_tinytex(force=TRUE)
+library(tidyverse)
+library(devtools)
+library(dplyr)
+library(haven)
+library(survival)
+library(devtools)
+# install_github('kassambara/survminer')
+library(survminer)
+
+```
+
+### Read in the data.
+
+```{r, echo=TRUE}
+#save the files "Lab6_ARIC_Data.dta" and "Lab6.Rmd" to your desktop or a known folder.
+#if files are on your desktop, replace *** with your username for Mac Users. for PC users, insert the filepath to your Desktop or wherever you are storing the Lab6_ARIC_Data file
+setwd("D:/JHU/term 1/751-epi method/week 6/Epi751_Lab6_DataFiles") #this line sets the working directory for where files are read from and saved to.
+
+data <- read_dta("Lab6_ARIC_Data.dta")
+data$fupchdn<-ifelse(data$fupchd==0,'no_CHD_event','CHD_event') #make a variable that describes CHD events over the followup period using words rather than numbers
+```
+
+# Calculate how many participants are included in this ARIC dataset
+
+```{r, echo=TRUE}
+length(data$id)
+```
+
+# Examine the end dates
+
+```{r, echo=TRUE}
+table_enddate <- table(data$enddate)
+table_enddate
+```
+
+# Explore & Describe the Dataset
+
+## Examine the breakdown of gender data.
+
+```{r, echo=TRUE}
+data$gender<-ifelse(data$gender==1,'Male','Female')
+table(data$gender, data$fupchdn)
+sumgender <- sum(is.na(data$gender))
+print(paste0("Number of missing values: ",sumgender))
+```
+
+## Examine the breakdown of race data.
+
+```{r, echo=TRUE}
+data$racegrp <- as.numeric(data$racegrp)
+data$racegrp[data$racegrp==1] <- "White"
+data$racegrp[data$racegrp==2] <- "Black"
+data$racegrp[data$racegrp==3] <- "Other"
+table(data$racegrp, data$fupchdn)
+sumrace <- sum(is.na(data$racegrp))
+print(paste0("Number of missing values: ",sumrace))
+```
+
+## Examine the prevalence of smoking in this cohort.
+
+```{r, echo=TRUE}
+data$smoke123 <- as.numeric(data$smoke123)
+data$smoke123[data$smoke123==1] <- "Current"
+data$smoke123[data$smoke123==2] <- "Former"
+data$smoke123[data$smoke123==3] <- "Never"
+table(data$smoke123, data$fupchdn)
+sumsmoke <- sum(is.na(data$smoke123))
+print(paste0("Number of missing values: ",sumsmoke))
+```
+
+## Examine hypertension.
+
+```{r, echo=TRUE}
+data$hypert <- as.numeric(data$hypert)
+data$hypert<-ifelse(data$hypert==1,'Hypertension','No Hypertension')
+table(data$hypert, data$fupchdn)
+sumrace <- sum(is.na(data$hypert))
+print(paste0("Number of missing values: ",sumrace))
+```
+
+## Examine cholesterol.
+
+```{r, echo=TRUE}
+data$cholcat <- as.numeric(data$cholcat)
+data$cholcat[data$cholcat==1] <- "Chol < 200"
+data$cholcat[data$cholcat==2] <- "200 < Chol < 240"
+data$cholcat[data$cholcat==3] <- "Chol > 240"
+table(data$cholcat, data$fupchdn)
+sumcholcat <- sum(is.na(data$cholcat))
+print(paste0("Number of missing values: ",sumcholcat))
+```
+
+## Examine BMI.
+
+```{r, echo=TRUE}
+data$bmicat <- as.numeric(data$bmicat)
+data$bmicat[data$bmicat==1] <- "Normal"
+data$bmicat[data$bmicat==2] <- "Overweight"
+data$bmicat[data$bmicat==3] <- "Obese"
+table(data$bmicat, data$fupchdn)
+sumbmicat <- sum(is.na(data$bmicat))
+print(paste0("Number of missing values: ",sumbmicat))
+```
+
+\newpage
+
+# Prevalence of Prior CHD
+
+```{r, echo=TRUE}
+data$prevchd <- as.numeric(data$prevchd)
+data$prevchd<-ifelse(data$prevchd==1,'Yes','No')
+table(data$prevchd, data$fupchdn)
+sumprevchd <- sum(is.na(data$prevchd))
+print(paste0("Number of missing values: ",sumprevchd))
+```
+
+# Total follow-up time excluding those with prevalent CHD at baseline
+
+```{r, echo=TRUE}
+noprevchd <- data %>%
+    filter(prevchd=="No") %>%
+    select(id,followup, gender, racegrp, bmicat,smoke123, fupchd)
+sum(noprevchd$followup)
+```
+
+# Number of failures in single failure-per-subject data
+
+```{r, echo=TRUE}
+table(data$fupchdn, data$prevchd)
+```
+
+\newpage
+
+# Incidence of CHD by participant characteristics
+
+## By Gender:
+
+```{r gender, echo=TRUE}
+aggregate(followup~gender, data=noprevchd,sum) #person-time at risk by gender
+aggregate(fupchd~gender, data=noprevchd, sum) #number of incident CHD cases by gender
+table(noprevchd$gender) #total number of participants by gender
+```
+
+## By Race:
+
+```{r race, echo=TRUE}
+aggregate(followup~racegrp, data=noprevchd,sum) #person-time at risk
+aggregate(fupchd~racegrp, data=noprevchd,sum) #number of incident CHD cases
+table(noprevchd$racegrp) #total number of participants
+```
+
+## By BMI:
+
+```{r bmi, echo=TRUE}
+aggregate(followup~bmicat, data=noprevchd,sum) #person-time at risk
+aggregate(fupchd~bmicat, data=noprevchd,sum) #number of incident CHD cases
+table(noprevchd$bmicat) #total number of participants
+```
+
+## By Smoking:
+
+```{r}
+aggregate(followup~smoke123, data=noprevchd,sum) #person-time at risk
+aggregate(fupchd~smoke123, data=noprevchd,sum) #number of incident CHD cases
+table(noprevchd$smoke123) #total number of participants
+```
+
+\newpage
+
+# Kaplan-Meier Curves
+
+```{r, echo=TRUE}
+#these two lines of code preps the survival object needed to make Kaplan-Meier curves
+data$fupchd <- as.numeric(data$fupchd) 
+survival_object <- Surv(time=noprevchd$followup, event=noprevchd$fupchd)
+```
+
+## Making the graphs. For the first two graphs, only focus on the solid line.
+
+```{r, echo=TRUE}
+km_fit <- survfit(survival_object ~ 1)
+km_gender <- survfit(survival_object ~ gender, data=noprevchd)
+plot(km_fit, xlab = "Time in Years", ylab = "Probability of Survival", main="Kaplan-Meier Survival Estimates")
+```
+
+```{r, echo=TRUE}
+plot(km_fit,ylim=c(0.9,1),xlab = "Time in Years", ylab = "Probability of Survival", main="Kaplan-Meier Survival Estimates")
+```
+
+```{r, echo=TRUE}
+plot(km_gender, ylim=c(0.9,1),xlab = "Time in Years", ylab = "Probability of Survival", main="Kaplan-Meier Survival Estimates", col=c("blue","red"))
+legend(x="topright", legend =c("Female","Male"), fill =c("blue","red"))
+```

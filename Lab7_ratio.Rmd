@@ -1,0 +1,209 @@
+---
+title: "Epi 751 Lab7"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#if you are having errors installing packages, please delete the ,repos=... specification for each of the below install.packages lines
+# install.packages("haven", repos="https://cran.r-project.org/web/packages/haven/index.html")
+# install.packages("dplyr", repos="https://cran.r-project.org/web/packages/dplyr/index.html")
+# install.packages("survival", repos="https://cran.r-project.org/web/packages/survival/index.html")
+# install.packages("ggplot2", repos="https://cran.r-project.org/web/packages/ggplot2/index.html")
+# install.packages("fmsb", repos="https://cran.r-project.org/web/packages/fmsb/index.html")
+install.packages("fmsb")
+library(haven)
+library(dplyr)
+library(survival)
+library(ggplot2)
+library(fmsb)
+```
+
+# Read in the data
+```{r, echo=TRUE}
+#save the files "Lab7_WIHS_Measures_Assn_Data.dta" and this file "Lab7.Rmd" to your desktop (or to a folder, but both files MUST be in the same place)
+# given files are in your desktop, remember to replace *** with your username for Mac Users. for PC users, insert the filepath to your Desktop or wherever you are storing the Lab7_WIHS_Measures_Assn_Data.dta file
+setwd("D:/JHU/term 1/751-epi method") #this command sets the working directory where files are read from and where files are outputted
+
+data <- read_dta("D:/JHU/term 1/751-epi method/week 7/Epi751_Lab7_Data/Lab7_WIHS_Measures_Assn_Data.dta") #read in the STATA dataset into R
+```
+
+# Describe AIDS prevalence with "proportion", by CD4 strata
+```{r, echo=TRUE}
+table(data$aidsprev)
+prop.table(table(data$aidsprev))
+table(data$cd4cat, data$aidsprev)
+prop.table(table(data$cd4cat, data$aidsprev), margin = 1)
+
+prevalence_table <- as.data.frame(as.table(table(data$cd4cat, data$aidsprev)))
+colnames(prevalence_table) <- c("cd4cat", "aidsprev", "count")
+# Calculate the total count for each cd4cat group
+total_counts <- aggregate(count ~ cd4cat, data = prevalence_table, sum)$count
+# Calculate proportions for each group
+prevalence_table$Proportion <- prevalence_table$count / total_counts[match(prevalence_table$cd4cat, unique(prevalence_table$cd4cat))]
+# Calculate standard errors
+prevalence_table$StandardError <- sqrt(prevalence_table$Proportion * (1 - prevalence_table$Proportion) / total_counts[match(prevalence_table$cd4cat, unique(prevalence_table$cd4cat))])
+# Calculate 95% confidence intervals
+prevalence_table$CI_lower <- prevalence_table$Proportion - 1.96 * prevalence_table$StandardError
+prevalence_table$CI_upper <- prevalence_table$Proportion + 1.96 * prevalence_table$StandardError
+# Show the final table
+print(prevalence_table)
+```
+
+# Look at Missingness in Incident AIDS
+```{r, echo=TRUE}
+table(data$aidsinc)
+prop.table(table(data$aidsinc))
+
+table(data$aidsinc, data$aidsprev, useNA = "ifany")
+```
+
+# Incident AIDS by CD4 Category
+```{r, echo=TRUE}
+table(data$aidsinc)
+prop.table(table(data$aidsinc))
+table(data$cd4cat, data$aidsinc)
+prop.table(table(data$cd4cat, data$aidsinc), margin = 1)
+
+
+incidence_table <- as.data.frame(as.table(table(data$cd4cat, data$aidsinc)))
+colnames(incidence_table) <- c("cd4cat", "aidsinc", "count")
+# Calculate the total count for each cd4cat group
+total_counts <- aggregate(count ~ cd4cat, data = incidence_table, sum)$count
+# Calculate proportions for each group
+incidence_table$Proportion <- incidence_table$count / total_counts[match(incidence_table$cd4cat, unique(incidence_table$cd4cat))]
+# Calculate standard errors
+incidence_table$StandardError <- sqrt(incidence_table$Proportion * (1 - incidence_table$Proportion) / total_counts[match(incidence_table$cd4cat, unique(incidence_table$cd4cat))])
+# Calculate 95% confidence intervals
+incidence_table$CI_lower <- incidence_table$Proportion - 1.96 * incidence_table$StandardError
+incidence_table$CI_upper <- incidence_table$Proportion + 1.96 * incidence_table$StandardError
+# Show the final table
+print(incidence_table)
+```
+
+# Look at Follow-Up times by Incident AIDS
+```{r, echo=TRUE}
+boxplot(ptime ~ factor(aidsinc), data = data, xlab = "aidsinc", ylab = "ptime")
+
+# To generate KM table with net lost
+data$cd4cat <- as.factor(data$cd4cat)
+# Initialize an empty data frame for the output
+output_table <- data.frame()
+# Iterate over the unique levels of cd4cat
+for(cat in unique(data$cd4cat)) {
+  # Fit the survival model for the specific cd4cat level
+  fit <- survfit(Surv(ptime, aidsinc) ~ cd4cat, data = data, subset = (cd4cat == cat))
+  
+  # Extract the summary for the specific cd4cat level
+  km_summary <- summary(fit, times = unique(data$ptime))
+  
+  # Create a temporary data frame with the desired columns for the specific cd4cat level
+  temp_table <- data.frame(
+    cd4cat = rep(cat, length(km_summary$time)),
+    Time = km_summary$time,
+    AtRisk = km_summary$n.risk,
+    Events = km_summary$n.event,
+    NetLost = c(head(km_summary$n.risk, -1) - tail(km_summary$n.risk, -1) - head(km_summary$n.event, -1), tail(km_summary$n.risk, 1)), # Calculate NetLoss here
+    SurvivalProbability = km_summary$surv
+  )
+  
+  # Append the temporary table to the output table
+  output_table <- rbind(output_table, temp_table)
+}
+
+# Remove rows where both Events and NetLoss are 0
+output_table <- output_table[!(output_table$Events == 0 & output_table$NetLost == 0), ]
+
+print(output_table[output_table$cd4cat == 1, ])
+print(output_table[output_table$cd4cat == 2, ])
+print(output_table[output_table$cd4cat == 3, ])
+
+
+# Plot Kaplan–Meier Graph
+fit <- survfit(Surv(ptime, aidsinc) ~ cd4cat, data = data)
+plot(fit, fun = function(x) 1-x, xlab = "Analysis time", 
+     ylab = "Cumulative Incidence", main="Kaplan-Meier failure estimates",
+     ylim = c(0, 1), col = 1:3)
+legend("topright", legend = paste("cd4cat =", unique(data$cd4cat)), col = 1:3, lty = 1, bty = "n")
+```
+
+
+# Generate dummy variables to examine Incidence Rates by CD4 stratum
+```{r, echo=TRUE}
+#create cd2v1 category
+data$cd2v1 <- ifelse(data$cd4cat == 2, 1, 
+                     ifelse(data$cd4cat == 1, 0, NA))
+data$cd2v1 <- as.factor(data$cd2v1)
+#create cd3v1 category
+data$cd3v1 <- ifelse(data$cd4cat == 3, 1, 
+                     ifelse(data$cd4cat == 1, 0, NA))
+data$cd3v1 <- as.factor(data$cd3v1)
+
+# Incident rate calculations for cd2v1
+cd2v1_data <- c(sum(data$aidsinc[data$cd2v1 == 1], na.rm = TRUE),
+                sum(data$ptime[data$cd2v1 == 1], na.rm = TRUE),
+                sum(data$aidsinc[data$cd2v1 == 0], na.rm = TRUE),
+                sum(data$ptime[data$cd2v1 == 0], na.rm = TRUE)
+                )
+cd2v1_table <- matrix(cd2v1_data, nrow = 2, byrow = TRUE, 
+                      dimnames = list(c("Exposed Group","Unexposed Group"), c("Cases","Person-time")))
+
+# calculate the incidence rate difference and ratio and 95% CI for cd2v1
+cd2v1_diff <- ratedifference(cd2v1_table[1,1],cd2v1_table[2,1],cd2v1_table[1,2],cd2v1_table[2,2], CRC=FALSE, conf.level=0.95)
+cd2v1_diff
+cd2v1_ratio <- rateratio(cd2v1_table[1,1],cd2v1_table[2,1],cd2v1_table[1,2],cd2v1_table[2,2], conf.level=0.95)
+cd2v1_ratio
+
+# Incident rate calculations for cd3v1
+cd3v1_data <- c(sum(data$aidsinc[data$cd3v1 == 1], na.rm = TRUE),
+                sum(data$ptime[data$cd3v1 == 1], na.rm = TRUE),
+                sum(data$aidsinc[data$cd3v1 == 0], na.rm = TRUE),
+                sum(data$ptime[data$cd3v1 == 0], na.rm = TRUE)
+)
+cd3v1_table <- matrix(cd3v1_data, nrow = 2, byrow = TRUE, 
+                      dimnames = list(c("Exposed Group","Unexposed Group"), c("Cases","Person-time")))
+
+# calculate the incidence rate difference and ratio and 95% CI for cd2v1
+cd3v1_diff <- ratedifference(cd3v1_table[1,1],cd3v1_table[2,1],cd3v1_table[1,2],cd3v1_table[2,2], CRC=FALSE, conf.level=0.95)
+cd3v1_diff
+cd3v1_ratio <- rateratio(cd3v1_table[1,1],cd3v1_table[2,1],cd3v1_table[1,2],cd3v1_table[2,2], conf.level=0.95)
+cd3v1_ratio
+
+```
+
+# Change reference groups to create Incidence Rate Ratio >1 for Interpretable Excess Fraction
+```{r, echo=TRUE}
+#create cd2v1rev category, switching reference group
+data$cd2v1rev <- ifelse(data$cd4cat == 2, 0, 
+                        ifelse(data$cd4cat == 1, 1, NA))
+data$cd2v1rev <- as.factor(data$cd2v1rev)
+table(data$cd2v1rev, data$aidsinc)
+
+
+# Incident rate calculations for cd2v1rev
+cd2v1rev_data <- c(sum(data$aidsinc[data$cd2v1rev == 1], na.rm = TRUE),
+                   sum(data$ptime[data$cd2v1rev == 1], na.rm = TRUE),
+                   sum(data$aidsinc[data$cd2v1rev == 0], na.rm = TRUE),
+                   sum(data$ptime[data$cd2v1rev == 0], na.rm = TRUE)
+)
+cd2v1rev_table <- matrix(cd2v1rev_data, nrow = 2, byrow = TRUE, 
+                         dimnames = list(c("Exposed Group","Unexposed Group"), c("Cases","Person-time")))
+
+# calculate the incidence rate difference and ratio and 95% CI for cd2v1rev
+cd2v1rev_diff <- ratedifference(cd2v1rev_table[1,1],cd2v1rev_table[2,1],cd2v1rev_table[1,2],cd2v1rev_table[2,2], CRC=FALSE, conf.level=0.95)
+cd2v1rev_diff
+cd2v1rev_ratio <- rateratio(cd2v1rev_table[1,1],cd2v1rev_table[2,1],cd2v1rev_table[1,2],cd2v1rev_table[2,2], conf.level=0.95)
+cd2v1rev_ratio
+
+#Calculate prevented fraction among the exposed
+irr_cd2v1rev <- as.numeric(cd2v1rev_ratio[3])
+ef_cd2v1rev <- (irr_cd2v1rev-1)/irr_cd2v1rev
+ef_cd2v1rev
+#Calculate Population Attributable Fraction using Miettinen’s alternative formula
+num_cases_exp <- cd2v1rev_table[1,1]
+num_cases_unexp <- cd2v1rev_table[2,1]
+# prevalence of cases that are exposed
+exp_case_prev <- num_cases_exp/(num_cases_exp+num_cases_unexp)
+paf_cd2v1rev <- ef_cd2v1rev * exp_case_prev
+paf_cd2v1rev
+```
